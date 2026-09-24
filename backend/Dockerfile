@@ -14,9 +14,7 @@ FROM eclipse-temurin:17-jre-jammy
 
 WORKDIR /app
 
-# Create non-root user for security
-RUN addgroup --system spring && adduser --system --ingroup spring spring
-USER spring:spring
+# Removed non-root user for volume permission compatibility
 
 COPY --from=builder /app/target/*.jar app.jar
 

@@ -7,10 +7,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "9090:9090"
-    environment:
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-dummy-client-id}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-dummy-client-secret}
-      - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY:-cloudvaultdefaultkey1234567890ab}
+    env_file:
+      - ./backend/.env
     volumes:
       - backend-data:/app/data
     restart: unless-stopped
@@ -20,7 +18,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "8080:80"
+      - "5173:80"
     depends_on:
       - backend
     restart: unless-stopped
