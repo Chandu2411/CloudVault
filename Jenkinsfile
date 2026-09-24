@@ -53,18 +53,42 @@ pipeline {
 
         stage('Docker Deploy') {
             steps {
-                echo 'Building and starting CloudValut containers...'
+                echo 'Creating environment configuration...'
 
-                sh '''
-                    docker compose down || true
-                    docker compose up -d --build
-                '''
+                withCredentials([
+                    string(credentialsId: 'GOOGLE_CLIENT_ID', variable: 'GOOGLE_CLIENT_ID'),
+                    string(credentialsId: 'GOOGLE_CLIENT_SECRET', variable: 'GOOGLE_CLIENT_SECRET'),
+                    string(credentialsId: 'TOKEN_ENCRYPTION_KEY', variable: 'TOKEN_ENCRYPTION_KEY'),
+                    string(credentialsId: 'DB_USERNAME', variable: 'DB_USERNAME'),
+                    string(credentialsId: 'DB_PASSWORD', variable: 'DB_PASSWORD'),
+                    string(credentialsId: 'SPRING_PROFILES_ACTIVE', variable: 'SPRING_PROFILES_ACTIVE')
+                ]) {
+
+                    sh '''
+                        echo "Creating backend environment file..."
+
+                        cat > backend/.env <<EOF
+GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}
+DB_USERNAME=${DB_USERNAME}
+DB_PASSWORD=${DB_PASSWORD}
+SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
+EOF
+
+                        echo "Stopping previous CloudValut containers..."
+                        docker compose down || true
+
+                        echo "Building and starting CloudValut..."
+                        docker compose up -d --build
+                    '''
+                }
             }
         }
 
         stage('Deployment Check') {
             steps {
-                echo 'Checking running Docker containers...'
+                echo 'Checking deployed containers...'
 
                 sh '''
                     docker compose ps
@@ -75,12 +99,18 @@ pipeline {
 
     post {
         success {
-            echo 'CloudValut Jenkins pipeline completed successfully!'
-            echo 'Application should be available at http://localhost:5173'
+            echo '========================================='
+            echo 'CloudValut deployment successful!'
+            echo 'Frontend: http://localhost:5173'
+            echo 'Backend:  http://localhost:9090'
+            echo '========================================='
         }
 
         failure {
+            echo '========================================='
             echo 'CloudValut Jenkins pipeline failed.'
+            echo 'Check the console output for details.'
+            echo '========================================='
         }
     }
 }
