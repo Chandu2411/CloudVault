@@ -1,9 +1,13 @@
 package com.cloudmigration.service;
 
 import com.cloudmigration.entity.GoogleAccount;
+import com.cloudmigration.entity.TransferItem;
+import com.cloudmigration.entity.TransferJob;
 import com.cloudmigration.enums.AccountRole;
 import com.cloudmigration.exception.AccountNotFoundException;
 import com.cloudmigration.repository.GoogleAccountRepository;
+import com.cloudmigration.repository.TransferItemRepository;
+import com.cloudmigration.repository.TransferJobRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,33 +28,49 @@ public class GoogleAccountService {
 
     private final GoogleAccountRepository googleAccountRepository;
     private final TokenEncryptionService tokenEncryptionService;
+    private final TransferJobRepository transferJobRepository;
+    private final TransferItemRepository transferItemRepository;
 
     public GoogleAccountService(GoogleAccountRepository googleAccountRepository,
-                                 TokenEncryptionService tokenEncryptionService) {
+                                 TokenEncryptionService tokenEncryptionService,
+                                 TransferJobRepository transferJobRepository,
+                                 TransferItemRepository transferItemRepository) {
         this.googleAccountRepository = googleAccountRepository;
         this.tokenEncryptionService = tokenEncryptionService;
+        this.transferJobRepository = transferJobRepository;
+        this.transferItemRepository = transferItemRepository;
     }
 
     public List<GoogleAccount> getAllAccounts() {
         return googleAccountRepository.findAll();
     }
 
-    public List<GoogleAccount> getSourceAccounts() {
-        return googleAccountRepository.findByRole(AccountRole.SOURCE);
+    public List<GoogleAccount> getSourceAccounts(com.cloudmigration.entity.AppUser appUser) {
+        if (appUser == null) return List.of();
+        List<GoogleAccount> accounts = googleAccountRepository.findByAppUserIdAndRole(appUser.getId(), AccountRole.SOURCE);
+        System.out.println("Querying for user ID: " + appUser.getId() + " - found accounts: " + accounts.size());
+        return accounts;
     }
 
-    public Optional<GoogleAccount> getSourceAccount() {
-        List<GoogleAccount> sources = googleAccountRepository.findByRole(AccountRole.SOURCE);
+    public Optional<GoogleAccount> getSourceAccount(com.cloudmigration.entity.AppUser appUser) {
+        if (appUser == null) return Optional.empty();
+        List<GoogleAccount> sources = getSourceAccounts(appUser);
         return sources.isEmpty() ? Optional.empty() : Optional.of(sources.get(0));
     }
 
-    public List<GoogleAccount> getDestinationAccounts() {
-        return googleAccountRepository.findByRole(AccountRole.DESTINATION);
+    public List<GoogleAccount> getDestinationAccounts(com.cloudmigration.entity.AppUser appUser) {
+        if (appUser == null) return List.of();
+        return googleAccountRepository.findByAppUserIdAndRole(appUser.getId(), AccountRole.DESTINATION);
     }
 
     public GoogleAccount getAccountById(UUID accountId) {
         return googleAccountRepository.findById(accountId)
             .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountId));
+    }
+
+    @Transactional
+    public GoogleAccount saveAccount(GoogleAccount account) {
+        return googleAccountRepository.save(account);
     }
 
     /**
@@ -92,6 +112,15 @@ public class GoogleAccountService {
     @Transactional
     public void disconnectAccount(UUID accountId) {
         GoogleAccount account = getAccountById(accountId);
+        
+        // Fix for ConstraintViolationException: delete child TransferItems
+        List<TransferItem> items = transferItemRepository.findByDestinationAccountId(accountId);
+        transferItemRepository.deleteAll(items);
+        
+        // Fix for ConstraintViolationException: delete child TransferJobs
+        List<TransferJob> jobs = transferJobRepository.findBySourceAccountId(accountId);
+        transferJobRepository.deleteAll(jobs);
+        
         googleAccountRepository.delete(account);
         log.info("Disconnected account: {}", account.getEmail());
     }

@@ -7,26 +7,38 @@ import {
 } from './types';
 
 
-// Assuming Vite proxy is set up or backend is on same host port 9090
 const API = axios.create({
   baseURL: 'http://localhost:9090/api',
   withCredentials: true 
 });
 
+API.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    if (config.headers && typeof config.headers.set === 'function') {
+      config.headers.set('Authorization', `Bearer ${token}`);
+    } else {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
 export const getSourceAccount = () => API.get<GoogleAccount>('/accounts/source').then(res => res.data);
 export const getDestinations = () => API.get<GoogleAccount[]>('/accounts/destination').then(res => res.data);
 export const removeDestination = (id: string) => API.delete(`/accounts/${id}`);
+export const disconnectAccount = (id: string) => API.delete(`/accounts/${id}`);
 export const refreshStorage = (id: string) => API.post<GoogleAccount>(`/accounts/${id}/refresh-storage`).then(res => res.data);
 
 export const getSourceFiles = (accountId: string) => {
   return API.get<DriveFile[]>(`/transfer/files/${accountId}`).then(res => res.data);
 };
 
-export const generatePlan = (files: DriveFile[]) => 
-  API.post<TransferPlanResult>('/transfer/plan', files).then(res => res.data);
+export const generatePlan = (files: DriveFile[], destinationAccountIds: string[]) => 
+  API.post<TransferPlanResult>('/transfer/plan', { files, destinationAccountIds }).then(res => res.data);
 
-export const startTransfer = (files: DriveFile[], destinationAccountIds: string[]) => 
-  API.post<TransferJob>('/transfer/start', { files, destinationAccountIds }).then(res => res.data);
+export const startTransfer = (files: DriveFile[], destinationAccountIds: string[], transferMode: 'COPY' | 'CUT' = 'COPY') => 
+  API.post<TransferJob>('/transfer/start', { files, destinationAccountIds, transferMode }).then(res => res.data);
 
 export const getTransferHistory = () => API.get<TransferJob[]>('/jobs').then(res => res.data);
 export const getTransferJob = (id: string) => API.get<TransferJob>(`/jobs/${id}`).then(res => res.data);
@@ -63,4 +75,11 @@ export const getTransferProgress = (id: string) =>
   });
 
 export const authSourceUrl = 'http://localhost:9090/api/oauth/google/SOURCE';
-export const authDestUrl = 'http://localhost:9090/api/oauth/google/DESTINATION';
+
+export const getAuthDestUrl = () => {
+  const token = localStorage.getItem('token');
+  return `http://localhost:9090/api/oauth/google/DESTINATION${token ? '?userId=' + token : ''}`;
+};
+
+export const registerUser = (data: any) => API.post('/auth/register', data).then(res => res.data);
+export const loginUser = (data: any) => API.post('/auth/login', data).then(res => res.data);

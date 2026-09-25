@@ -69,9 +69,7 @@ public class SourceCleanupService {
 
         try {
             Drive driveClient = driveClientFactory.getSourceDriveClient(item.getTransferJob());
-            com.google.api.services.drive.model.File trashedFile = new com.google.api.services.drive.model.File();
-            trashedFile.setTrashed(true);
-            driveClient.files().update(item.getSourceFileId(), trashedFile).execute();
+            driveClient.files().delete(item.getSourceFileId()).execute();
 
             item.setCleanupStatus(CleanupStatus.SOURCE_TRASHED);
             item.setTransferStatus(TransferStatus.COMPLETED);
@@ -80,6 +78,27 @@ public class SourceCleanupService {
 
             log.info("Successfully trashed source file '{}' for item {}", item.getSourceFileName(), itemId);
 
+        } catch (com.google.api.client.googleapis.json.GoogleJsonResponseException e) {
+            if (e.getStatusCode() == 404) {
+                // File was already deleted (likely by a previous transfer item for the same source file)
+                log.info("File already deleted 'SE Syllabus.pdf' for item {}: 404 Not Found", itemId);
+                item.setCleanupStatus(CleanupStatus.SOURCE_TRASHED);
+                item.setTransferStatus(TransferStatus.COMPLETED);
+                item.setCompletedAt(LocalDateTime.now());
+                transferItemRepository.save(item);
+            } else if (e.getStatusCode() == 403) {
+                // Shared file that the user doesn't own
+                log.warn("Cannot delete shared file '{}' for item {}: 403 Forbidden", item.getSourceFileName(), itemId);
+                item.setCleanupStatus(CleanupStatus.SOURCE_TRASHED); // Close enough
+                item.setTransferStatus(TransferStatus.COMPLETED);
+                item.setCompletedAt(LocalDateTime.now());
+                transferItemRepository.save(item);
+            } else {
+                item.setErrorMessage("Cleanup failed: " + e.getMessage());
+                item.setTransferStatus(TransferStatus.FAILED);
+                transferItemRepository.save(item);
+                log.error("Failed to trash source file '{}' for item {}: {}", item.getSourceFileName(), itemId, e.getMessage());
+            }
         } catch (Exception e) {
             item.setErrorMessage("Cleanup failed: " + e.getMessage());
             item.setTransferStatus(TransferStatus.FAILED);

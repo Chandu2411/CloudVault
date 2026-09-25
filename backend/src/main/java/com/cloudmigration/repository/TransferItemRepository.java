@@ -13,4 +13,5 @@ public interface TransferItemRepository extends JpaRepository<TransferItem, UUID
     List<TransferItem> findByTransferJobId(UUID transferJobId);
     List<TransferItem> findByTransferStatus(TransferStatus status);
     List<TransferItem> findByTransferJobIdAndTransferStatus(UUID transferJobId, TransferStatus status);
+    List<TransferItem> findByDestinationAccountId(UUID destinationAccountId);
 }

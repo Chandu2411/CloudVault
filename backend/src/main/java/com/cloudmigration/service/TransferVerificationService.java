@@ -71,23 +71,28 @@ public class TransferVerificationService {
                 return;
             }
 
-            // Step 2: Size check
-            if (item.getExpectedSizeBytes() != null && destFile.getSize() != null) {
-                if (!item.getExpectedSizeBytes().equals(destFile.getSize())) {
-                    markVerificationFailed(item,
-                        "Size mismatch: expected " + item.getExpectedSizeBytes() +
-                        " bytes but got " + destFile.getSize() + " bytes");
-                    return;
-                }
-            }
+            boolean isWorkspaceFile = item.getSourceMimeType() != null && 
+                                      item.getSourceMimeType().startsWith("application/vnd.google-apps.");
 
-            // Step 3: Checksum check (skip for Google Workspace files — no MD5)
-            if (item.getSourceMd5Checksum() != null && destFile.getMd5Checksum() != null) {
-                if (!Objects.equals(item.getSourceMd5Checksum(), destFile.getMd5Checksum())) {
-                    markVerificationFailed(item,
-                        "MD5 checksum mismatch: source=" + item.getSourceMd5Checksum() +
-                        " destination=" + destFile.getMd5Checksum());
-                    return;
+            if (!isWorkspaceFile) {
+                // Step 2: Size check (only for non-Workspace files)
+                if (item.getExpectedSizeBytes() != null && destFile.getSize() != null) {
+                    if (!item.getExpectedSizeBytes().equals(destFile.getSize())) {
+                        markVerificationFailed(item,
+                            "Size mismatch: expected " + item.getExpectedSizeBytes() +
+                            " bytes but got " + destFile.getSize() + " bytes");
+                        return;
+                    }
+                }
+
+                // Step 3: Checksum check (only for non-Workspace files)
+                if (item.getSourceMd5Checksum() != null && destFile.getMd5Checksum() != null) {
+                    if (!Objects.equals(item.getSourceMd5Checksum(), destFile.getMd5Checksum())) {
+                        markVerificationFailed(item,
+                            "MD5 checksum mismatch: source=" + item.getSourceMd5Checksum() +
+                            " destination=" + destFile.getMd5Checksum());
+                        return;
+                    }
                 }
             }
 

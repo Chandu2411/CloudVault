@@ -10,7 +10,6 @@ import com.cloudmigration.enums.TransferStatus;
 import com.cloudmigration.repository.TransferJobRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,26 +17,43 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.UUID;
 
+/**
+ * TransferJobService — Creates and starts transfer jobs.
+ *
+ * Async execution is delegated to {@link TransferJobExecutor}, a separate bean,
+ * so Spring's @Async proxy is correctly invoked (self-invocation on 'this' bypasses it).
+ */
 @Service
 public class TransferJobService {
 
     private static final Logger log = LoggerFactory.getLogger(TransferJobService.class);
 
-    private final TransferJobRepository transferJobRepository;
-    private final DriveTransferService driveTransferService;
-    private final GoogleAccountService googleAccountService;
+    private final TransferJobRepository  transferJobRepository;
+    private final GoogleAccountService   googleAccountService;
+    private final TransferProgressStore  progressStore;
+    private final TransferJobExecutor    jobExecutor;
 
     public TransferJobService(TransferJobRepository transferJobRepository,
-                              DriveTransferService driveTransferService,
-                              GoogleAccountService googleAccountService) {
+                              GoogleAccountService googleAccountService,
+                              TransferProgressStore progressStore,
+                              TransferJobExecutor jobExecutor) {
         this.transferJobRepository = transferJobRepository;
-        this.driveTransferService = driveTransferService;
-        this.googleAccountService = googleAccountService;
+        this.googleAccountService  = googleAccountService;
+        this.progressStore         = progressStore;
+        this.jobExecutor           = jobExecutor;
     }
 
+    /**
+     * Creates the job in the database, initialises the progress store,
+     * returns the job ID immediately, then fires off async execution.
+     *
+     * The @Transactional here ensures the job is committed to the DB before
+     * the async thread tries to read it.
+     */
     @Transactional
-    public TransferJob createAndStartJob(TransferPlanResultDto plan) {
-        GoogleAccount sourceAccount = googleAccountService.getSourceAccount()
+    public TransferJob createAndStartJob(TransferPlanResultDto plan, String transferMode,
+                                         com.cloudmigration.entity.AppUser user) {
+        GoogleAccount sourceAccount = googleAccountService.getSourceAccount(user)
                 .orElseThrow(() -> new IllegalStateException("No source account connected"));
 
         TransferJob job = new TransferJob();
@@ -51,7 +67,8 @@ public class TransferJobService {
 
         for (TransferPlanEntryDto entry : plan.getPlan()) {
             if (entry.isCanFit() && entry.getDestinationAccountId() != null) {
-                GoogleAccount destAccount = googleAccountService.getAccountById(UUID.fromString(entry.getDestinationAccountId()));
+                GoogleAccount destAccount = googleAccountService
+                    .getAccountById(UUID.fromString(entry.getDestinationAccountId()));
                 TransferItem item = new TransferItem();
                 item.setTransferJob(job);
                 item.setSourceFileId(entry.getFileId());
@@ -65,30 +82,23 @@ public class TransferJobService {
         }
 
         TransferJob savedJob = transferJobRepository.save(job);
-        
-        // Start async execution
-        executeJobAsync(savedJob.getId());
 
+        // ── Initialise in-memory store BEFORE firing the async job ──────────
+        // This ensures the SSE endpoint has data immediately when the frontend
+        // connects (which it does within ~200ms of receiving the job ID).
+        progressStore.initJob(savedJob.getId(), plan.getTotalSizeBytes(), plan.getTotalFittable());
+
+        // ── Fire async execution via SEPARATE BEAN (TransferJobExecutor) ───
+        // CRITICAL: We must NOT call this on 'this' — Spring @Async works via
+        // AOP proxy, and self-invocation bypasses the proxy, running synchronously.
+        // By calling jobExecutor.executeAsync(), the proxy is correctly intercepted.
+        UUID jobId = savedJob.getId();
+        String mode = transferMode;
+        // Small delay to allow the @Transactional commit to flush before the async
+        // thread reads the job from DB.
+        jobExecutor.executeAsync(jobId, mode);
+
+        log.info("Transfer job {} created and queued for async execution", jobId);
         return savedJob;
-    }
-
-    @Async
-    public void executeJobAsync(UUID jobId) {
-        try {
-            TransferJob job = transferJobRepository.findById(jobId).orElseThrow();
-            driveTransferService.executeTransferJob(job);
-            
-            job.setStatus(TransferJobStatus.COMPLETED);
-            job.setCompletedAt(LocalDateTime.now());
-            transferJobRepository.save(job);
-        } catch (Exception e) {
-            log.error("Failed to execute transfer job {}", jobId, e);
-            transferJobRepository.findById(jobId).ifPresent(job -> {
-                job.setStatus(TransferJobStatus.FAILED);
-                job.setErrorMessage(e.getMessage());
-                job.setCompletedAt(LocalDateTime.now());
-                transferJobRepository.save(job);
-            });
-        }
     }
 }

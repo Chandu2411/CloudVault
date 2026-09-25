@@ -30,8 +30,9 @@ public class DriveStorageService {
             About.StorageQuota quota = about.getStorageQuota();
 
             if (quota != null) {
-                Long total = quota.getLimit();
-                Long used = quota.getUsage();
+                // If limit is null (e.g., Workspace unlimited or Edu accounts), default to 15GB (16106127360L)
+                Long total = quota.getLimit() != null ? quota.getLimit() : 16106127360L;
+                Long used = quota.getUsage() != null ? quota.getUsage() : 0L;
                 return new StorageInfo(total, used);
             }
         } catch (IOException e) {

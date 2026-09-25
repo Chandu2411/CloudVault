@@ -50,36 +50,38 @@ public class StorageAllocationService {
             List<DriveFileDto> selectedFiles,
             List<GoogleAccount> destAccounts) {
 
-        // Create a mutable copy of available storage per account
-        // accountStorage maps account ID → predicted available bytes
-        Map<UUID, Long> accountStorage = new HashMap<>();
-        for (GoogleAccount account : destAccounts) {
-            Long available = account.getStorageAvailable();
-            accountStorage.put(account.getId(), available != null ? available : 0L);
-        }
-
-        // Sort files LARGEST FIRST for Better Fit efficiency
-        // (Placing large files first reduces fragmentation)
-        List<DriveFileDto> sortedFiles = selectedFiles.stream()
-            .sorted(Comparator.comparingLong(DriveFileDto::getSizeBytes).reversed())
-            .toList();
-
         List<TransferPlanEntryDto> plan = new ArrayList<>();
         long totalFittable = 0;
         long totalUnfittable = 0;
 
-        for (DriveFileDto file : sortedFiles) {
-            long fileSize = file.isGoogleWorkspace() ? 1_048_576L : file.getSizeBytes(); // 1MB estimate for Workspace
-            TransferPlanEntryDto entry = findBestFitAccount(file, fileSize, destAccounts, accountStorage);
-            plan.add(entry);
+        for (DriveFileDto file : selectedFiles) {
+            long fileSize = file.isGoogleWorkspace() ? 1_048_576L : file.getSizeBytes();
 
-            if (entry.isCanFit()) {
-                totalFittable++;
-                // Update predicted storage for next iteration
-                accountStorage.compute(UUID.fromString(entry.getDestinationAccountId()),
-                    (k, v) -> v == null ? 0 : v - fileSize);
-            } else {
+            if (destAccounts.isEmpty()) {
+                plan.add(TransferPlanEntryDto.builder()
+                    .fileId(file.getId())
+                    .fileName(file.getName())
+                    .fileSizeBytes(fileSize)
+                    .mimeType(file.getMimeType())
+                    .canFit(false)
+                    .reason("NO_ACCOUNTS_SELECTED")
+                    .build());
                 totalUnfittable++;
+            } else {
+                // REPLICATION MODE: Copy file to ALL selected destination accounts
+                for (GoogleAccount destAccount : destAccounts) {
+                    plan.add(TransferPlanEntryDto.builder()
+                        .fileId(file.getId())
+                        .fileName(file.getName())
+                        .fileSizeBytes(fileSize)
+                        .mimeType(file.getMimeType())
+                        .destinationAccountId(destAccount.getId().toString())
+                        .destinationEmail(destAccount.getEmail())
+                        .canFit(true)
+                        .remainingStorageAfterFit(0L) // UI doesn't need to know remaining storage for replication
+                        .build());
+                    totalFittable++;
+                }
             }
         }
 
@@ -88,55 +90,6 @@ public class StorageAllocationService {
             .totalFittable((int) totalFittable)
             .totalUnfittable((int) totalUnfittable)
             .totalSizeBytes(selectedFiles.stream().mapToLong(DriveFileDto::getSizeBytes).sum())
-            .build();
-    }
-
-    /**
-     * For a given file, find the best fitting destination account.
-     *
-     * Best Fit = the account with available storage >= fileSize
-     *            AND the SMALLEST (available - fileSize), i.e., least waste.
-     */
-    private TransferPlanEntryDto findBestFitAccount(
-            DriveFileDto file,
-            long fileSize,
-            List<GoogleAccount> accounts,
-            Map<UUID, Long> accountStorage) {
-
-        GoogleAccount bestAccount = null;
-        long bestRemaining = Long.MAX_VALUE;
-
-        for (GoogleAccount account : accounts) {
-            long available = accountStorage.getOrDefault(account.getId(), 0L);
-            if (available >= fileSize) {
-                long remaining = available - fileSize;
-                if (remaining < bestRemaining) {
-                    bestRemaining = remaining;
-                    bestAccount = account;
-                }
-            }
-        }
-
-        if (bestAccount == null) {
-            return TransferPlanEntryDto.builder()
-                .fileId(file.getId())
-                .fileName(file.getName())
-                .fileSizeBytes(fileSize)
-                .mimeType(file.getMimeType())
-                .canFit(false)
-                .reason("INSUFFICIENT_STORAGE")
-                .build();
-        }
-
-        return TransferPlanEntryDto.builder()
-            .fileId(file.getId())
-            .fileName(file.getName())
-            .fileSizeBytes(fileSize)
-            .mimeType(file.getMimeType())
-            .destinationAccountId(bestAccount.getId().toString())
-            .destinationEmail(bestAccount.getEmail())
-            .canFit(true)
-            .remainingStorageAfterFit(bestRemaining)
             .build();
     }
 

@@ -96,7 +96,7 @@ export function SourceDrive() {
       <div className="glass-card p-5 flex flex-wrap items-center gap-6">
         <div className="flex items-center gap-3">
           <div className="h-12 w-12 rounded-full border-2 border-green-400 shadow bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xl uppercase">
-            {account.displayName ? account.displayName[0] : account.email[0]}
+            {account?.displayName?.[0] || account?.email?.[0] || 'S'}
           </div>
           <div>
             <div className="flex items-center gap-2">

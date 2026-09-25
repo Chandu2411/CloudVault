@@ -169,11 +169,11 @@ export function Dashboard() {
               <>
                 <div className="flex items-center gap-4 mb-8">
                   <div className="h-12 w-12 rounded-full border border-slate-200 bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xl uppercase">
-                    {sourceAccount.displayName ? sourceAccount.displayName[0] : sourceAccount.email[0]}
+                    {sourceAccount?.displayName?.[0] || sourceAccount?.email?.[0] || 'S'}
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800">{sourceAccount.displayName || 'Google Account'}</p>
-                    <p className="text-sm text-slate-500">{sourceAccount.email}</p>
+                    <p className="font-semibold text-slate-800">{sourceAccount?.displayName || 'Google Account'}</p>
+                    <p className="text-sm text-slate-500">{sourceAccount?.email || 'No email'}</p>
                   </div>
                 </div>
 
@@ -222,11 +222,11 @@ export function Dashboard() {
                 <div key={account.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-4 w-full">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white font-bold shadow-sm uppercase">
-                      {account.displayName ? account.displayName[0] : account.email[0]}
+                      {account?.displayName?.[0] || account?.email?.[0] || 'B'}
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between items-center mb-2">
-                        <p className="text-sm font-medium text-slate-700 truncate max-w-[140px]">{account.email}</p>
+                        <p className="text-sm font-medium text-slate-700 truncate max-w-[140px]">{account?.email || 'No email'}</p>
                         <p className="text-xs font-medium text-emerald-600">{formatBytes(account.storageAvailable)} free</p>
                       </div>
                       <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">

@@ -44,10 +44,14 @@ public class OAuthController {
 
     private final GoogleAccountService googleAccountService;
     private final DriveStorageService driveStorageService;
+    private final com.cloudmigration.repository.AppUserRepository appUserRepository;
+    private final com.cloudmigration.util.JwtUtil jwtUtil;
 
-    public OAuthController(GoogleAccountService googleAccountService, DriveStorageService driveStorageService) {
+    public OAuthController(GoogleAccountService googleAccountService, DriveStorageService driveStorageService, com.cloudmigration.repository.AppUserRepository appUserRepository, com.cloudmigration.util.JwtUtil jwtUtil) {
         this.googleAccountService = googleAccountService;
         this.driveStorageService = driveStorageService;
+        this.appUserRepository = appUserRepository;
+        this.jwtUtil = jwtUtil;
     }
 
     private GoogleAuthorizationCodeFlow getFlow() {
@@ -63,10 +67,15 @@ public class OAuthController {
     }
 
     @GetMapping("/google/{role}")
-    public ResponseEntity<Void> authorize(@PathVariable String role) {
+    public ResponseEntity<Void> authorize(@PathVariable String role, @RequestParam(value = "userId", required = false) String userId) {
+        String finalState = role.toUpperCase();
+        if (userId != null && !userId.isEmpty()) {
+            finalState += "_" + userId;
+        }
+
         String authorizationUrl = getFlow().newAuthorizationUrl()
                 .setRedirectUri(redirectUri)
-                .setState(role.toUpperCase())
+                .setState(finalState)
                 .build();
         
         HttpHeaders headers = new HttpHeaders();
@@ -105,23 +114,73 @@ public class OAuthController {
             );
 
             Map<String, Object> userInfo = userInfoResponse.getBody();
-            AccountRole role = AccountRole.valueOf(state);
+            String email = (String) userInfo.get("email");
+            String name = (String) userInfo.get("name");
+            String googleId = (String) userInfo.get("id");
+            
+            if ("LOGIN".equals(state)) {
+                // Find or create AppUser
+                com.cloudmigration.entity.AppUser appUser = appUserRepository.findByEmail(email).orElseGet(() -> {
+                    com.cloudmigration.entity.AppUser newUser = new com.cloudmigration.entity.AppUser();
+                    newUser.setEmail(email);
+                    newUser.setDisplayName(name);
+                    newUser.setGoogleSub(googleId);
+                    newUser.setCreatedAt(java.time.LocalDateTime.now());
+                    return newUser;
+                });
+                appUser.setLastLoginAt(java.time.LocalDateTime.now());
+                appUserRepository.save(appUser);
+                
+                String token = jwtUtil.generateToken(appUser.getEmail(), appUser.getId().toString());
+                
+                // ALSO create/update the SOURCE account and link it
+                com.cloudmigration.entity.GoogleAccount account = googleAccountService.connectAccount(
+                        email, name, AccountRole.SOURCE, accessToken, refreshToken, null, null
+                );
+                account.setAppUser(appUser);
+                // Need to save again to update appUser
+                googleAccountService.saveAccount(account);
+                
+                driveStorageService.refreshAccountStorage(account.getId());
+                
+                HttpHeaders headers = new HttpHeaders();
+                headers.setLocation(URI.create("http://localhost:5173/dashboard?token=" + token));
+                return new ResponseEntity<>(headers, HttpStatus.FOUND);
+            }
+
+            // For DESTINATION, state will be DESTINATION_<jwtToken>
+            String roleStr = state;
+            String jwtToken = null;
+            if (state.contains("_")) {
+                String[] parts = state.split("_", 2);
+                roleStr = parts[0];
+                jwtToken = parts[1];
+            }
+
+            AccountRole role = AccountRole.valueOf(roleStr);
 
             com.cloudmigration.entity.GoogleAccount account = googleAccountService.connectAccount(
-                    (String) userInfo.get("email"),
-                    (String) userInfo.get("name"),
+                    email,
+                    name,
                     role,
                     accessToken,
                     refreshToken,
-                    null, // fetched via drive service below
-                    null  // fetched via drive service below
+                    null,
+                    null
             );
+            
+            if (jwtToken != null) {
+                String userEmail = jwtUtil.extractUsername(jwtToken);
+                appUserRepository.findByEmail(userEmail).ifPresent(appUser -> {
+                    account.setAppUser(appUser);
+                    googleAccountService.saveAccount(account);
+                });
+            }
             
             driveStorageService.refreshAccountStorage(account.getId());
 
-            // Redirect back to frontend
             HttpHeaders headers = new HttpHeaders();
-            headers.setLocation(URI.create("http://localhost:5173/"));
+            headers.setLocation(URI.create("http://localhost:5173/backups"));
             return new ResponseEntity<>(headers, HttpStatus.FOUND);
 
         } catch (Exception e) {

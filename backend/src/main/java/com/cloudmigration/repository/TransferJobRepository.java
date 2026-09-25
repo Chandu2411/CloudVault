@@ -12,4 +12,5 @@ import java.util.UUID;
 public interface TransferJobRepository extends JpaRepository<TransferJob, UUID> {
     List<TransferJob> findByAppUserIdOrderByCreatedAtDesc(UUID appUserId);
     List<TransferJob> findByStatus(TransferJobStatus status);
+    List<TransferJob> findBySourceAccountId(UUID sourceAccountId);
 }

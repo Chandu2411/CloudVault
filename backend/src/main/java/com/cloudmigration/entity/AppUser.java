@@ -13,7 +13,7 @@ public class AppUser {
     @Column(updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "google_sub", unique = true, nullable = false)
+    @Column(name = "google_sub", unique = true)
     private String googleSub;
 
     @Column(name = "email", unique = true, nullable = false)
@@ -21,6 +21,12 @@ public class AppUser {
 
     @Column(name = "display_name")
     private String displayName;
+    
+    @Column(name = "password")
+    private String password;
+    
+    @Column(name = "phone_number")
+    private String phoneNumber;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -38,6 +44,10 @@ public class AppUser {
     public void setEmail(String email) { this.email = email; }
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+    public String getPhoneNumber() { return phoneNumber; }
+    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
