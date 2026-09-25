@@ -15,6 +15,7 @@ export interface DriveFile {
   mimeType: string;
   sizeBytes: number;
   webViewLink?: string;
+  parents?: string[];
 }
 
 export interface TransferPlanEntry {

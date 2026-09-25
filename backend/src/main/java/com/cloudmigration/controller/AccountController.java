@@ -64,6 +64,13 @@ public class AccountController {
         com.cloudmigration.entity.AppUser user = getAuthenticatedUser(request);
         System.out.println("Source account requested for user: " + (user != null ? user.getEmail() : "null"));
         Optional<GoogleAccount> sourceOpt = googleAccountService.getSourceAccount(user);
+        
+        if (sourceOpt.isPresent()) {
+            // Auto-refresh the source account storage so it reflects the present condition (e.g. after a CUT operation)
+            driveStorageService.refreshAccountStorage(sourceOpt.get().getId());
+            sourceOpt = googleAccountService.getSourceAccount(user);
+        }
+        
         System.out.println("Found source account: " + sourceOpt.isPresent());
         return sourceOpt
                 .map(AccountDto::from)

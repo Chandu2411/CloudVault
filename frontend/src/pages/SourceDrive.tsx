@@ -66,6 +66,30 @@ export function SourceDrive() {
   const filtered = files.filter(f => f.name.toLowerCase().includes(search.toLowerCase()));
   const selectableFiles = filtered.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
 
+  // Build folder map and group files
+  const folderMap = new Map<string, DriveFile>();
+  files.forEach(f => {
+    if (f.mimeType === 'application/vnd.google-apps.folder') {
+      folderMap.set(f.id, f);
+    }
+  });
+
+  const groupedFiles = new Map<string, DriveFile[]>();
+  selectableFiles.forEach(file => {
+    let parentId = 'root';
+    if (file.parents && file.parents.length > 0) {
+       const validParent = file.parents.find(pid => folderMap.has(pid));
+       if (validParent) {
+         parentId = validParent;
+       }
+    }
+    
+    if (!groupedFiles.has(parentId)) {
+      groupedFiles.set(parentId, []);
+    }
+    groupedFiles.get(parentId)!.push(file);
+  });
+
   const toggleSelect = (id: string) => {
     setSelected(prev => {
       const next = new Set(prev);
@@ -176,30 +200,53 @@ export function SourceDrive() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((file) => (
-                    <tr
-                      key={file.id}
-                      className={`border-b border-slate-50 transition-colors ${selected.has(file.id) ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
-                    >
-                      <td className="px-4 py-3">
-                        {file.mimeType !== 'application/vnd.google-apps.folder' && (
-                          <button onClick={() => toggleSelect(file.id)}>
-                            {selected.has(file.id)
-                              ? <CheckSquare className="h-4 w-4 text-blue-600" />
-                              : <Square className="h-4 w-4 text-slate-300" />
-                            }
-                          </button>
+                  {Array.from(groupedFiles.entries())
+                    .sort((a, b) => {
+                      if (a[0] === 'root') return 1;
+                      if (b[0] === 'root') return -1;
+                      const nameA = folderMap.get(a[0])?.name || '';
+                      const nameB = folderMap.get(b[0])?.name || '';
+                      return nameA.localeCompare(nameB);
+                    })
+                    .map(([parentId, groupFiles]) => {
+                    const folder = parentId === 'root' ? null : folderMap.get(parentId);
+                    return (
+                      <React.Fragment key={parentId}>
+                        {folder && (
+                          <tr className="bg-slate-100 border-b border-slate-200">
+                            <td className="px-4 py-2" colSpan={3}>
+                              <div className="flex items-center gap-2 text-slate-700 font-semibold text-xs uppercase tracking-wider">
+                                <Folder className="h-4 w-4 text-blue-500" />
+                                {folder.name}
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-3">
-                          <FileIcon mimeType={file.mimeType} />
-                          <a href={file.webViewLink} target="_blank" rel="noreferrer" className="font-medium text-slate-700 hover:text-blue-600">{file.name}</a>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-slate-500">{formatBytes(file.sizeBytes)}</td>
-                    </tr>
-                  ))}
+                        {groupFiles.map((file) => (
+                          <tr
+                            key={file.id}
+                            className={`border-b border-slate-50 transition-colors ${selected.has(file.id) ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
+                          >
+                            <td className="px-4 py-3">
+                              <button onClick={() => toggleSelect(file.id)}>
+                                {selected.has(file.id)
+                                  ? <CheckSquare className="h-4 w-4 text-blue-600" />
+                                  : <Square className="h-4 w-4 text-slate-300" />
+                                }
+                              </button>
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="flex items-center gap-3">
+                                <FileIcon mimeType={file.mimeType} />
+                                <a href={file.webViewLink} target="_blank" rel="noreferrer" className="font-medium text-slate-700 hover:text-blue-600">{file.name}</a>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-slate-500">{formatBytes(file.sizeBytes)}</td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

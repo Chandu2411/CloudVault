@@ -40,6 +40,7 @@ public class TransferJobController {
 
     private final TransferJobRepository  transferJobRepository;
     private final TransferProgressStore  progressStore;
+    private final com.cloudmigration.repository.TransferItemRepository transferItemRepository;
 
     /** Shared scheduler for SSE heartbeat ticks. */
     private final ScheduledExecutorService scheduler =
@@ -50,9 +51,11 @@ public class TransferJobController {
         });
 
     public TransferJobController(TransferJobRepository transferJobRepository,
-                                  TransferProgressStore progressStore) {
+                                  TransferProgressStore progressStore,
+                                  com.cloudmigration.repository.TransferItemRepository transferItemRepository) {
         this.transferJobRepository = transferJobRepository;
         this.progressStore         = progressStore;
+        this.transferItemRepository = transferItemRepository;
     }
 
     // ── REST endpoints ───────────────────────────────────────────────────────
@@ -191,8 +194,9 @@ public class TransferJobController {
         snap.speedBytesPerSec         = 0;
         snap.estimatedRemainingSeconds = 0;
 
-        if (job.getItems() != null) {
-            snap.items = job.getItems().stream()
+        List<com.cloudmigration.entity.TransferItem> items = transferItemRepository.findByTransferJobId(jobId);
+        if (items != null && !items.isEmpty()) {
+            snap.items = items.stream()
                 .sorted(Comparator.comparing(i -> i.getSourceFileName()))
                 .map(item -> {
                     ItemSnapshot is = new ItemSnapshot();

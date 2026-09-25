@@ -24,7 +24,7 @@ public class TransferJob {
     @JoinColumn(name = "app_user_id")
     private AppUser appUser;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "source_account_id", nullable = false)
     private GoogleAccount sourceAccount;
 

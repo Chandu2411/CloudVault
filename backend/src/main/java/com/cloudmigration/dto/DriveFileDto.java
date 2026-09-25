@@ -12,6 +12,7 @@ public class DriveFileDto {
     private Boolean isGoogleWorkspace;
     private String md5Checksum;
     private String webViewLink;
+    private java.util.List<String> parents;
 
     public DriveFileDto() {}
 
@@ -23,6 +24,7 @@ public class DriveFileDto {
         this.isGoogleWorkspace = builder.isGoogleWorkspace;
         this.md5Checksum = builder.md5Checksum;
         this.webViewLink = builder.webViewLink;
+        this.parents = builder.parents;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -41,6 +43,8 @@ public class DriveFileDto {
     public void setMd5Checksum(String md5Checksum) { this.md5Checksum = md5Checksum; }
     public String getWebViewLink() { return webViewLink; }
     public void setWebViewLink(String webViewLink) { this.webViewLink = webViewLink; }
+    public java.util.List<String> getParents() { return parents; }
+    public void setParents(java.util.List<String> parents) { this.parents = parents; }
 
     public static class Builder {
         private String id;
@@ -50,6 +54,7 @@ public class DriveFileDto {
         private Boolean isGoogleWorkspace;
         private String md5Checksum;
         private String webViewLink;
+        private java.util.List<String> parents;
 
         public Builder id(String id) { this.id = id; return this; }
         public Builder name(String name) { this.name = name; return this; }
@@ -58,6 +63,7 @@ public class DriveFileDto {
         public Builder isGoogleWorkspace(Boolean isGoogleWorkspace) { this.isGoogleWorkspace = isGoogleWorkspace; return this; }
         public Builder md5Checksum(String md5Checksum) { this.md5Checksum = md5Checksum; return this; }
         public Builder webViewLink(String webViewLink) { this.webViewLink = webViewLink; return this; }
+        public Builder parents(java.util.List<String> parents) { this.parents = parents; return this; }
         public DriveFileDto build() { return new DriveFileDto(this); }
     }
 }

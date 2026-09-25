@@ -271,8 +271,8 @@ public class DriveTransferService {
         try {
             Drive drive = driveClientFactory.buildDriveClient(account);
             var result = drive.files().list()
-                .setFields("files(id,name,mimeType,size,md5Checksum,webViewLink)")
-                .setPageSize(100)
+                .setFields("files(id,name,mimeType,size,md5Checksum,webViewLink,parents)")
+                .setPageSize(1000)
                 .execute();
 
             return result.getFiles().stream()
@@ -284,6 +284,7 @@ public class DriveTransferService {
                     .isGoogleWorkspace(isGoogleWorkspaceMimeType(f.getMimeType()))
                     .md5Checksum(f.getMd5Checksum())
                     .webViewLink(f.getWebViewLink())
+                    .parents(f.getParents())
                     .build())
                 .toList();
         } catch (Exception e) {

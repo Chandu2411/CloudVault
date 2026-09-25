@@ -38,17 +38,23 @@ public class TransferJobExecutor {
     private final TransferVerificationService transferVerificationService;
     private final SourceCleanupService       sourceCleanupService;
     private final TransferProgressStore      progressStore;
+    private final com.cloudmigration.repository.TransferItemRepository transferItemRepository;
+    private final com.cloudmigration.service.GoogleAccountService googleAccountService;
 
     public TransferJobExecutor(TransferJobRepository transferJobRepository,
                                DriveTransferService driveTransferService,
                                TransferVerificationService transferVerificationService,
                                SourceCleanupService sourceCleanupService,
-                               TransferProgressStore progressStore) {
+                               TransferProgressStore progressStore,
+                               com.cloudmigration.repository.TransferItemRepository transferItemRepository,
+                               com.cloudmigration.service.GoogleAccountService googleAccountService) {
         this.transferJobRepository      = transferJobRepository;
         this.driveTransferService       = driveTransferService;
         this.transferVerificationService = transferVerificationService;
         this.sourceCleanupService       = sourceCleanupService;
         this.progressStore              = progressStore;
+        this.transferItemRepository     = transferItemRepository;
+        this.googleAccountService       = googleAccountService;
     }
 
     /**
@@ -59,7 +65,19 @@ public class TransferJobExecutor {
     @Async
     public void executeAsync(UUID jobId, String transferMode) {
         try {
-            var job = transferJobRepository.findById(jobId).orElseThrow();
+            // The @Async thread may start before the @Transactional in createAndStartJob
+            // has committed to the DB. Retry up to 5 times (1 second total) to be safe.
+            var jobOpt = transferJobRepository.findById(jobId);
+            int retries = 0;
+            while (jobOpt.isEmpty() && retries < 5) {
+                try { Thread.sleep(200); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                jobOpt = transferJobRepository.findById(jobId);
+                retries++;
+            }
+            // capture for lambda (retries must be effectively final)
+            final int finalRetries = retries;
+            var job = jobOpt.orElseThrow(() ->
+                new IllegalStateException("Job " + jobId + " not found in DB after " + finalRetries + " retries"));
 
             // 1. Transfer all queued items — CountingInputStream updates progressStore per chunk
             driveTransferService.executeTransferJob(job);
@@ -74,7 +92,7 @@ public class TransferJobExecutor {
                 // COPY mode: mark all VERIFIED items as COMPLETED
                 // Copy to plain List to avoid Hibernate ConcurrentModificationException
                 var finalJob  = transferJobRepository.findById(jobId).orElseThrow();
-                List<TransferItem> itemsCopy = new ArrayList<>(finalJob.getItems());
+                List<TransferItem> itemsCopy = transferItemRepository.findByTransferJobId(jobId);
                 int completed = 0;
                 for (TransferItem item : itemsCopy) {
                     if (item.getTransferStatus() == TransferStatus.VERIFIED) {
@@ -82,15 +100,27 @@ public class TransferJobExecutor {
                         item.setCompletedAt(LocalDateTime.now());
                         progressStore.markCompleted(jobId, item.getId());
                         completed++;
+                        
+                        // Update destination account storage locally
+                        try {
+                            com.cloudmigration.entity.GoogleAccount destAcc = item.getDestinationAccount();
+                            if (destAcc != null && destAcc.getStorageUsed() != null && item.getFileSizeBytes() != null) {
+                                long newUsed = destAcc.getStorageUsed() + item.getFileSizeBytes();
+                                googleAccountService.updateStorageInfo(destAcc.getId(), destAcc.getStorageTotal(), newUsed);
+                            }
+                        } catch (Exception e) {
+                            log.warn("Failed to update local storage usage for account", e);
+                        }
                     }
                 }
+                transferItemRepository.saveAll(itemsCopy);
                 finalJob.setCompletedFiles(completed);
                 transferJobRepository.save(finalJob);
             }
 
             // 4. Mark the job itself as COMPLETED in the database
             var completedJob = transferJobRepository.findById(jobId).orElseThrow();
-            long doneCount = completedJob.getItems().stream()
+            long doneCount = transferItemRepository.findByTransferJobId(jobId).stream()
                 .filter(i -> i.getTransferStatus() == TransferStatus.COMPLETED
                           || i.getTransferStatus() == TransferStatus.VERIFIED)
                 .count();
@@ -110,7 +140,7 @@ public class TransferJobExecutor {
         } catch (Exception e) {
             log.error("Transfer job {} failed: {}", jobId, e.getMessage(), e);
             transferJobRepository.findById(jobId).ifPresent(job -> {
-                long doneCount = job.getItems().stream()
+                long doneCount = transferItemRepository.findByTransferJobId(jobId).stream()
                     .filter(i -> i.getTransferStatus() == TransferStatus.COMPLETED
                               || i.getTransferStatus() == TransferStatus.VERIFIED)
                     .count();

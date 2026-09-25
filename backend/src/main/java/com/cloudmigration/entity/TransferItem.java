@@ -53,7 +53,7 @@ public class TransferItem {
     private Boolean isGoogleWorkspace = false;
 
     // Destination information
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "destination_account_id", nullable = false)
     private GoogleAccount destinationAccount;
 

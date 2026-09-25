@@ -85,11 +85,13 @@ public class StorageAllocationService {
             }
         }
 
+        long totalBytes = plan.stream().filter(TransferPlanEntryDto::isCanFit).mapToLong(TransferPlanEntryDto::getFileSizeBytes).sum();
+
         return TransferPlanResultDto.builder()
             .plan(plan)
             .totalFittable((int) totalFittable)
             .totalUnfittable((int) totalUnfittable)
-            .totalSizeBytes(selectedFiles.stream().mapToLong(DriveFileDto::getSizeBytes).sum())
+            .totalSizeBytes(totalBytes)
             .build();
     }
 

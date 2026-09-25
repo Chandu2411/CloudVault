@@ -45,7 +45,14 @@ public class DriveStorageService {
         GoogleAccount account = googleAccountService.getAccountById(accountId);
         StorageInfo info = getStorageInfo(account);
         if (info.total != null && info.used != null) {
-            googleAccountService.updateStorageInfo(accountId, info.total, info.used);
+            long finalUsed = info.used;
+            // Google Drive API quota can be delayed by several hours. 
+            // If our local database has a higher usage (from recent transfers), we retain the local value
+            // so the UI doesn't visually revert backwards when the user clicks 'Refresh'.
+            if (account.getStorageUsed() != null && account.getStorageUsed() > info.used) {
+                finalUsed = account.getStorageUsed();
+            }
+            googleAccountService.updateStorageInfo(accountId, info.total, finalUsed);
         }
     }
 
