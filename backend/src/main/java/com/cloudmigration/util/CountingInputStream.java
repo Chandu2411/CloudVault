@@ -43,15 +43,22 @@ public class CountingInputStream extends FilterInputStream {
     }
 
     @Override
+    public int read(byte[] b) throws IOException {
+        int n = in.read(b);
+        if (n > 0) store.addBytes(jobId, itemId, n);
+        return n;
+    }
+
+    @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        int n = super.read(b, off, len);
+        int n = in.read(b, off, len);
         if (n > 0) store.addBytes(jobId, itemId, n);
         return n;
     }
 
     @Override
     public long skip(long n) throws IOException {
-        long skipped = super.skip(n);
+        long skipped = in.skip(n);
         if (skipped > 0) store.addBytes(jobId, itemId, skipped);
         return skipped;
     }
