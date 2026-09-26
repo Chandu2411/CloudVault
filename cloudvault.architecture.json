@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "CloudVault Migrator Architecture",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Chandu2411/CloudVault",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "797d2dd5364ad7b8c2166e0c60862f29adc0bcc7"
+    },
+    "views": [
+      {
+        "id": "runtime-transfer",
+        "label": "Transfer runtime",
+        "focus": ["users", "frontend", "api", "transferPipeline", "sourceDrive", "destinationDrives", "database"],
+        "note": "Follow a selected file from the browser through job creation, streamed transfer, verification, and optional source cleanup."
+      },
+      {
+        "id": "identity-and-progress",
+        "label": "Identity and progress",
+        "focus": ["frontend", "api", "googleOauth", "database", "transferPipeline"],
+        "note": "See local JWT login, Google account linking, and live transfer progress delivered through SSE."
+      },
+      {
+        "id": "deployment",
+        "label": "Build and runtime deployment",
+        "focus": ["jenkins", "dockerCompose", "frontend", "api", "database"],
+        "note": "Jenkins builds and tests the applications, then deploys the frontend and backend with Docker Compose."
+      }
+    ],
+    "viewBox": [1390, 960]
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "external",
+      "label": "User",
+      "sublabel": "Browser",
+      "pos": [50, 360],
+      "size": [130, 64],
+      "sources": [{ "path": "frontend/src/App.tsx", "label": "Application routes" }]
+    },
+    {
+      "id": "frontend",
+      "type": "frontend",
+      "label": "React Frontend",
+      "sublabel": "Vite + TypeScript + Axios",
+      "pos": [250, 360],
+      "size": [180, 76],
+      "sources": [
+        { "path": "frontend/src/App.tsx", "label": "Routes" },
+        { "path": "frontend/src/api.ts", "label": "REST client" },
+        { "path": "frontend/src/pages/Transfer.tsx", "label": "SSE client" }
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Spring Boot API",
+      "sublabel": "REST + JWT auth + SSE endpoint",
+      "pos": [530, 360],
+      "size": [190, 80],
+      "sources": [
+        { "path": "backend/src/main/java/com/cloudmigration/controller/AuthController.java", "label": "Local auth" },
+        { "path": "backend/src/main/java/com/cloudmigration/config/SecurityConfig.java", "label": "Security + CORS" },
+        { "path": "backend/src/main/java/com/cloudmigration/controller/TransferJobController.java", "label": "Job REST + SSE" }
+      ]
+    },
+    {
+      "id": "googleOauth",
+      "type": "external",
+      "label": "Google OAuth 2.0",
+      "sublabel": "Authorization Code Flow",
+      "pos": [530, 120],
+      "size": [190, 76],
+      "sources": [
+        { "path": "backend/src/main/java/com/cloudmigration/controller/OAuthController.java", "label": "Authorize + callback" },
+        { "path": "backend/src/main/java/com/cloudmigration/service/GoogleAccountService.java", "label": "Account linking" }
+      ]
+    },
+    {
+      "id": "transferPipeline",
+      "type": "backend",
+      "label": "Transfer Job Pipeline",
+      "sublabel": "Async stream + verify + CUT cleanup",
+      "pos": [850, 360],
+      "size": [230, 88],
+      "sources": [
+        { "path": "backend/src/main/java/com/cloudmigration/service/TransferJobService.java", "label": "Job creation" },
+        { "path": "backend/src/main/java/com/cloudmigration/service/TransferJobExecutor.java", "label": "Async orchestration" },
+        { "path": "backend/src/main/java/com/cloudmigration/service/DriveTransferService.java", "label": "Drive streaming" }
+      ]
+    },
+    {
+      "id": "database",
+      "type": "database",
+      "label": "JPA Database",
+      "sublabel": "H2 file; PostgreSQL option",
+      "pos": [530, 590],
+      "size": [190, 76],
+      "sources": [
+        { "path": "backend/src/main/resources/application.properties", "label": "Datasource config" },
+        { "path": "backend/src/main/java/com/cloudmigration/entity/TransferJob.java", "label": "Job entity" },
+        { "path": "backend/src/main/java/com/cloudmigration/entity/TransferItem.java", "label": "Item entity" }
+      ]
+    },
+    {
+      "id": "sourceDrive",
+      "type": "external",
+      "label": "Google Drive Source",
+      "sublabel": "File listing + download/export",
+      "pos": [1140, 170],
+      "size": [210, 80],
+      "sources": [
+        { "path": "backend/src/main/java/com/cloudmigration/service/DriveTransferService.java", "label": "List + download" },
+        { "path": "backend/src/main/java/com/cloudmigration/service/SourceCleanupService.java", "label": "Verified CUT cleanup" }
+      ]
+    },
+    {
+      "id": "destinationDrives",
+      "type": "external",
+      "label": "Google Drive Destinations",
+      "sublabel": "Selected backup accounts",
+      "pos": [1140, 364],
+      "size": [210, 80],
+      "sources": [
+        { "path": "backend/src/main/java/com/cloudmigration/service/DriveTransferService.java", "label": "Streaming upload" },
+        { "path": "backend/src/main/java/com/cloudmigration/service/TransferVerificationService.java", "label": "Destination verification" }
+      ]
+    },
+    {
+      "id": "dockerCompose",
+      "type": "cloud",
+      "label": "Docker Compose",
+      "sublabel": "Nginx frontend + Spring backend",
+      "pos": [235, 790],
+      "size": [210, 76],
+      "sources": [
+        { "path": "docker-compose.yml", "label": "Runtime services + volume" },
+        { "path": "frontend/Dockerfile", "label": "Nginx image" },
+        { "path": "backend/Dockerfile", "label": "Java image" }
+      ]
+    },
+    {
+      "id": "jenkins",
+      "type": "cloud",
+      "label": "Jenkins CI/CD",
+      "sublabel": "Build + test + deploy",
+      "pos": [570, 790],
+      "size": [190, 76],
+      "sources": [{ "path": "Jenkinsfile", "label": "Pipeline stages" }]
+    }
+  ],
+  "connections": [
+    { "id": "user-ui", "from": "users", "to": "frontend", "variant": "emphasis" },
+    { "id": "ui-api", "from": "frontend", "to": "api", "label": "REST + JWT; SSE", "variant": "emphasis" },
+    { "id": "api-oauth", "from": "api", "to": "googleOauth", "label": "OAuth authorize + token exchange", "variant": "security" },
+    { "id": "api-database", "from": "api", "to": "database", "label": "JPA users, accounts, jobs", "variant": "default", "labelAt": [625, 454] },
+    { "id": "api-job", "from": "api", "to": "transferPipeline", "label": "Plan + create transfer job", "variant": "emphasis", "labelAt": [785, 356] },
+    { "id": "pipeline-database", "from": "transferPipeline", "to": "database", "label": "Persist job and item state", "variant": "default" },
+    { "id": "source-download", "from": "sourceDrive", "to": "transferPipeline", "label": "List + download/export", "variant": "default", "labelAt": [1030, 260] },
+    { "id": "pipeline-destination", "from": "transferPipeline", "to": "destinationDrives", "label": "Stream upload + verify", "variant": "emphasis", "labelAt": [1325, 470] },
+    { "id": "pipeline-cleanup", "from": "transferPipeline", "to": "sourceDrive", "label": "CUT: trash only after verification", "variant": "security", "labelAt": [1280, 300] },
+    { "id": "compose-frontend", "from": "dockerCompose", "to": "frontend", "label": "Nginx serves UI :80", "variant": "default", "route": "orthogonal-v", "fromSide": "top", "toSide": "bottom" },
+    { "id": "compose-api", "from": "dockerCompose", "to": "api", "label": "Spring Boot :9090", "variant": "default", "labelAt": [495, 680] },
+    { "id": "jenkins-compose", "from": "jenkins", "to": "dockerCompose", "label": "Build, test, compose up", "variant": "emphasis", "labelAt": [515, 880] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Runtime flow",
+      "items": [
+        "The browser lists source files, requests a plan, then starts a transfer job.",
+        "The plan creates an item for each selected file and selected destination account.",
+        "An async worker streams each file, verifies the destination, and trashes the source only in CUT mode after verification."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Identity and progress",
+      "items": [
+        "Local register/login endpoints issue JWTs; Axios attaches the token to API requests.",
+        "Google OAuth callbacks link source or destination accounts and persist encrypted OAuth tokens.",
+        "CountingInputStream updates in-memory progress; the API emits snapshots to the transfer screen over SSE."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Deployment and persistence",
+      "items": [
+        "Compose exposes the frontend on host port 5173 and the backend on 9090, with a named volume mounted at /app/data.",
+        "The configured datasource is file-backed H2; PostgreSQL settings and driver are present as an alternative.",
+        "Jenkins packages and tests backend/frontend, then rebuilds and starts the Compose services."
+      ]
+    }
+  ]
+}
