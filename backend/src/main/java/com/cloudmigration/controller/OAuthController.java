@@ -36,6 +36,9 @@ public class OAuthController {
     @Value("${google.oauth.redirect-uri}")
     private String redirectUri;
 
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
+
     private static final List<String> SCOPES = Arrays.asList(
         "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/userinfo.email",
@@ -89,7 +92,7 @@ public class OAuthController {
                                          @RequestParam("state") String state) {
         if (error != null || code == null) {
             HttpHeaders headers = new HttpHeaders();
-            headers.setLocation(URI.create("http://localhost:5173/?error=access_denied"));
+            headers.setLocation(URI.create(frontendUrl + "/?error=access_denied"));
             return new ResponseEntity<>(headers, HttpStatus.FOUND);
         }
         try {
@@ -144,7 +147,7 @@ public class OAuthController {
                 driveStorageService.refreshAccountStorage(account.getId());
                 
                 HttpHeaders headers = new HttpHeaders();
-                headers.setLocation(URI.create("http://localhost:5173/dashboard?token=" + token));
+                headers.setLocation(URI.create(frontendUrl + "/dashboard?token=" + token));
                 return new ResponseEntity<>(headers, HttpStatus.FOUND);
             }
 
@@ -180,13 +183,13 @@ public class OAuthController {
             driveStorageService.refreshAccountStorage(account.getId());
 
             HttpHeaders headers = new HttpHeaders();
-            headers.setLocation(URI.create("http://localhost:5173/backups"));
+            headers.setLocation(URI.create(frontendUrl + "/backups"));
             return new ResponseEntity<>(headers, HttpStatus.FOUND);
 
         } catch (Exception e) {
             e.printStackTrace();
             HttpHeaders headers = new HttpHeaders();
-            headers.setLocation(URI.create("http://localhost:5173/?error=oauth_failed"));
+            headers.setLocation(URI.create(frontendUrl + "/?error=oauth_failed"));
             return new ResponseEntity<>(headers, HttpStatus.FOUND);
         }
     }

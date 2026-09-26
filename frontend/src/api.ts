@@ -7,8 +7,10 @@ import {
 } from './types';
 
 
+const API_BASE_URL = `http://${window.location.hostname}:9090/api`;
+
 const API = axios.create({
-  baseURL: 'http://localhost:9090/api',
+  baseURL: API_BASE_URL,
   withCredentials: true 
 });
 
@@ -74,11 +76,11 @@ export const getTransferProgress = (id: string) =>
     };
   });
 
-export const authSourceUrl = 'http://localhost:9090/api/oauth/google/SOURCE';
+export const authSourceUrl = `http://${window.location.hostname}:9090/api/oauth/google/SOURCE`;
 
 export const getAuthDestUrl = () => {
   const token = localStorage.getItem('token');
-  return `http://localhost:9090/api/oauth/google/DESTINATION${token ? '?userId=' + token : ''}`;
+  return `http://${window.location.hostname}:9090/api/oauth/google/DESTINATION${token ? '?userId=' + token : ''}`;
 };
 
 export const registerUser = (data: any) => API.post('/auth/register', data).then(res => res.data);

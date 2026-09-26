@@ -251,7 +251,8 @@ export function Transfer() {
     if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
 
     const token = localStorage.getItem('token');
-    const url = `http://localhost:9090/api/jobs/${activeJobId}/progress${token ? `?token=${token}` : ''}`;
+    const baseUrl = `http://${window.location.hostname}:9090/api`;
+    const url = `${baseUrl}/jobs/${activeJobId}/progress${token ? `?token=${token}` : ''}`;
     const es = new EventSource(url);
     sseRef.current = es;
 
